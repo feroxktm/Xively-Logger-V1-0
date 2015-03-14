@@ -28,7 +28,7 @@
 #define UARTDEBUG 1                                     //debug to serial port
 #define APPVERSION "0.1"                                //application version
 #define APPNAME "LoggerI"
-#define  PROJECT_NAME "LoggerIonut 2.0"
+#define  PROJECT_NAME "LoggerIonut 1.0"
 #define  PROJECT_DATE "Xiv Mar 2015"
 
 #define DIGITAL_SENSOR_UPDATETIMERINTERVALMS    10000 //1000 = 1secunda
