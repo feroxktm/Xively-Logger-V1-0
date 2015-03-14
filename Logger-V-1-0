@@ -10,15 +10,6 @@
 // and
 // EmonLibrary examples openenergymonitor.org, Licence GNU GPL V3
 
-
-/////////////////////////////////////////////////////////
-//
-//      Xively data log page
-//       https://xively.com/feeds/2130786858
-//
-//      
-////////////////////////////////////////////////////////
-
 // This #include statement was automatically added by the Spark IDE.
 #include "OneWire/OneWire.h"
 // This #include statement was automatically added by the Spark IDE.
