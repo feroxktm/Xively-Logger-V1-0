@@ -28,8 +28,8 @@
 // This #include statement was automatically added by the Spark IDE.
 #include "XivelyLib/XivelyLib.h"
 
-#define XIVELY_FEEDID "2130786858"                                          //default xively feed and api
-#define XIVELY_APIKEY "dg0Q3qu80lxZrgPVE4ozbXEJNaKFObxxuOipPmNo35BhJe2e"
+#define XIVELY_FEEDID "xxx"                                          //default xively feed and api
+#define XIVELY_APIKEY "xxx"
 #define CONFIG_LOADDEFAULT 1                            //reload default values to eeprom
 #define XIVELY_UPDATETIMERINTERVALSEC 15                //xively feed update time (seconds)         //interval logare date [sec]
 #define SPARK_CONNECTIONINTERVALMIN 5                   //active connection test time (minutes)
