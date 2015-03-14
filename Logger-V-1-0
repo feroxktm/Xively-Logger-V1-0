@@ -1,0 +1,521 @@
+// MADE BY feroxktm@yahoo.com with modification of Davide Giorni code for more sensor feeding
+//********************************************************************************************
+// XivelyLib for Spark
+// http://github.com/davidegironi/spark-xivelylib
+// Copyright (c) Davide Gironi, 2014 
+//
+// Released under GPLv3.
+// Please refer to LICENSE file for licensing information.
+//********************************************************************************************
+// and
+// EmonLibrary examples openenergymonitor.org, Licence GNU GPL V3
+
+
+/////////////////////////////////////////////////////////
+//
+//      Xively data log page
+//       https://xively.com/feeds/2130786858
+//
+//      
+////////////////////////////////////////////////////////
+
+// This #include statement was automatically added by the Spark IDE.
+#include "OneWire/OneWire.h"
+// This #include statement was automatically added by the Spark IDE.
+#include "spark-dallas-temperature/spark-dallas-temperature.h"
+// This #include statement was automatically added by the Spark IDE.
+#include "EmonLib/EmonLib.h"
+// This #include statement was automatically added by the Spark IDE.
+#include "XivelyLib/XivelyLib.h"
+
+#define XIVELY_FEEDID "2130786858"                                          //default xively feed and api
+#define XIVELY_APIKEY "dg0Q3qu80lxZrgPVE4ozbXEJNaKFObxxuOipPmNo35BhJe2e"
+#define CONFIG_LOADDEFAULT 1                            //reload default values to eeprom
+#define XIVELY_UPDATETIMERINTERVALSEC 15                //xively feed update time (seconds)         //interval logare date [sec]
+#define SPARK_CONNECTIONINTERVALMIN 5                   //active connection test time (minutes)
+
+#define UARTDEBUG 1                                     //debug to serial port
+#define APPVERSION "0.1"                                //application version
+#define APPNAME "LoggerI"
+#define  PROJECT_NAME "LoggerIonut 2.0"
+#define  PROJECT_DATE "Xiv Mar 2015"
+
+#define DIGITAL_SENSOR_UPDATETIMERINTERVALMS    10000 //1000 = 1secunda
+#define ANALOG_SENSOR_UPDATETIMERINTERVALMS     5000 //timer to update the reading of this sensor
+#define CURRENT_SENSOR_UPDATETIMERINTERVALMS    1000 //timer to update the reading of this sensor
+#define TEMP_SENSOR_UPDATETIMERINTERVALMS       3000 //timer to update the reading of this sensor
+
+//sensor1
+char DIGITAL_SENSOR_PORT[]  = { D0, D1, D2, D3, D4, D5, D6, D7 };
+char ANALOG_SENSOR_PORT[]   = { A0, A1, A2, A3, A4, A5, A6, A7 };
+
+//datastream channel
+//char DIGITAL_SENSOR_CHANNEL[]   = { 1, 2, 3, 4, 5, 6 };
+//char ANALOG_SENSOR_CHANNEL[]    = { 7, 8, 9, 10 };
+//char TEMP_SENSOR_CHANNEL[]      = { 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 };
+//char CURRENT_SENSOR_CHANNEL[]   = { 21, 22, 23 };
+char FEED_CHANNEL[]   = { 61, 62, 63, 64, 65, 66, 71, 72, 73, 74, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 41, 42 };
+//char FEED_CHANNEL[23][8]   = { "U1", "U2", "U3", "U4","U5", "U6", "D1", "D2", "D3", "D4", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T0", "P0", "P1", "P2" };
+
+//datastream variables
+double xivelydatapoint_sensor[23]     = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+int xivelydatapoint_sensorcount[23] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+//application info
+int ping            = 1;
+char appName[64]    = APPNAME;
+char appVersion[12] = APPVERSION;
+
+
+//encoder
+static boolean moving=false;
+volatile unsigned int encValue = 0;
+boolean enc1 = false;              
+boolean enc2 = false;
+//menu
+int page = 0;
+//int menu_set = 0;
+int buttonreading = 1;
+int previous = HIGH;    // the previous reading from the input pin
+//int end_menu_set = 0;
+//long int tempdelay = 0;
+//long int readingdelay = 0;
+
+
+//xively status led
+int xively_status = 0;
+
+//xively datapoints
+xivelyLib_datapoint xively_datapoints;
+
+EnergyMonitor emon1;                   // Create an instance
+EnergyMonitor emon2;                   // Create an instance
+EnergyMonitor emon3;                   // Create an instance
+
+#define ONE_WIRE_BUS A3
+#define TEMPERATURE_PRECISION 12
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+DeviceAddress SENSOR_CHANNEL1   = { 0x28, 0xFF, 0x68, 0x2B, 0x3C, 0x04, 0x00, 0xDD };
+DeviceAddress SENSOR_CHANNEL2   = { 0x28, 0xFF, 0x72, 0x06, 0x3A, 0x04, 0x00, 0x20 };
+DeviceAddress SENSOR_CHANNEL3   = { 0x28, 0xFF, 0x26, 0x27, 0x3C, 0x04, 0x00, 0x84 };
+DeviceAddress SENSOR_CHANNEL4   = { 0x28, 0xFF, 0x1E, 0x1B, 0x3B, 0x04, 0x00, 0x1E };
+DeviceAddress SENSOR_CHANNEL5   = { 0x28, 0xFF, 0x2A, 0x25, 0x3C, 0x04, 0x00, 0xA2 };
+DeviceAddress SENSOR_CHANNEL6   = { 0x28, 0xFF, 0x41, 0x2D, 0x3C, 0x04, 0x00, 0xDF };
+DeviceAddress SENSOR_CHANNEL7   = { 0x28, 0xFF, 0x31, 0x1B, 0x3B, 0x04, 0x00, 0x89 };
+DeviceAddress SENSOR_CHANNEL8   = { 0x28, 0xFF, 0x5D, 0x0B, 0x3A, 0x04, 0x00, 0x2A };
+DeviceAddress SENSOR_CHANNEL9   = { 0x28, 0xFF, 0xC3, 0x0A, 0x3A, 0x04, 0x00, 0xB0 };
+DeviceAddress SENSOR_CHANNEL10   = { 0x28, 0xFF, 0x5B, 0x16, 0x3B, 0x04, 0x00, 0xB8 };
+
+double TEMPCHANNEL[10] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+
+//storage id
+#define CONFIG_VERSION "st1"
+//storage start address
+#define CONFIG_START 0
+//storage data
+struct ConfigStruct {
+    char version[4];
+    char xively_feedid[XIVELYLIB_FEEDID_SIZE]; //set the xively feedid
+    char xively_apikey[XIVELYLIB_APIKEY_SIZE]; //set the xively apikey
+} config = {
+    CONFIG_VERSION,
+    XIVELY_FEEDID,
+    XIVELY_APIKEY
+};
+
+//initialize the xively library
+XivelyLib xively(XIVELY_FEEDID, XIVELY_APIKEY);
+
+// Initialize
+void setup()
+{
+    // encoder interupts
+    attachInterrupt(D0, intrEncChange1, CHANGE);
+    attachInterrupt(D1, intrEncChange2, CHANGE);
+
+    emon1.current(A0, 75);             // Current: input pin, calibration.
+    emon2.current(A1, 75);             // Current: input pin, calibration.
+    emon3.current(A2, 75);             // Current: input pin, calibration.
+ 
+
+    // DS18B20
+    sensors.begin();
+    sensors.setResolution(SENSOR_CHANNEL1, TEMPERATURE_PRECISION);
+    sensors.setResolution(SENSOR_CHANNEL2, TEMPERATURE_PRECISION);
+    sensors.setResolution(SENSOR_CHANNEL3, TEMPERATURE_PRECISION);
+    sensors.setResolution(SENSOR_CHANNEL4, TEMPERATURE_PRECISION);
+    sensors.setResolution(SENSOR_CHANNEL5, TEMPERATURE_PRECISION);
+    sensors.setResolution(SENSOR_CHANNEL6, TEMPERATURE_PRECISION);
+    sensors.setResolution(SENSOR_CHANNEL7, TEMPERATURE_PRECISION);
+    sensors.setResolution(SENSOR_CHANNEL8, TEMPERATURE_PRECISION);
+    sensors.setResolution(SENSOR_CHANNEL9, TEMPERATURE_PRECISION);
+    sensors.setResolution(SENSOR_CHANNEL10, TEMPERATURE_PRECISION);
+
+    //register spark functions and variables
+    Spark.variable("ping", &ping, INT);
+    Spark.variable("appName", &appName, STRING);
+    Spark.variable("appVersion", &appVersion, STRING);
+    Spark.function("feedId", call_setFeedId);
+    Spark.function("apiKey", call_setApiKey);
+    Spark.variable("feedId", &config.xively_feedid, STRING);
+    Spark.variable("apiKey", &config.xively_apikey, STRING);
+ 
+    //setup inputs
+    for (int i=0; i<=7; i++){        
+        pinMode(DIGITAL_SENSOR_PORT[i], INPUT);
+    }   
+    for (int i=0; i<=7; i++){
+        if (i != 3 ) {                                  // daca e diferit de intrarea pentru senzorii digitali sa faca restul
+            pinMode(ANALOG_SENSOR_PORT[i], INPUT);
+        }    
+    }   
+    
+    //start serial port if enabled
+    #if UARTDEBUG == 1
+    Serial.begin(9600);
+    Serial.print("Starting...");
+    #endif
+
+    //reload default config values
+    #if CONFIG_LOADDEFAULT == 1
+    strncpy(config.xively_feedid, XIVELY_FEEDID, strlen(XIVELY_FEEDID));
+    strncpy(config.xively_apikey, XIVELY_APIKEY, strlen(XIVELY_APIKEY));
+    saveConfig();
+    #endif
+        
+    //load config
+    loadConfig();
+    
+//    delay (2000);
+
+//    Serial1.begin(9600);
+//    clearLCD();
+//    delay (2000);
+//    cursorHome();
+//    Serial1.write(PROJECT_NAME);
+//    Serial1.write(PROJECT_DATE);
+}
+
+
+// Main loop
+void loop()
+{
+    static unsigned long xivelyUpdateTimer = millis(); //xively update timer
+    static unsigned long sparkConnectionTimer = millis(); //spark connection timer
+    //buttonRead();    // inca nu e nevoie de aceasta functie
+    encoderRead();
+    //do sensor readings
+    digital_in_Update();
+    analog_in_Update();
+    temperature_sensor_Update();
+    current_sensor_Update();
+
+    //get xively response
+    xively.responseListener();
+   
+    //send data to xively
+    if (millis()-xivelyUpdateTimer > 1000*XIVELY_UPDATETIMERINTERVALSEC) {
+        //debug xively status
+        #if UARTDEBUG == 1
+        Serial.print("Xively feed id: ");
+        Serial.println(xively.getFeedId());
+        Serial.print("Xively api key: ");
+        Serial.println(xively.getApiKey());
+        Serial.print("Xively update successful: ");
+        Serial.println(xively.isUpdateSuccessful());
+        #endif
+        
+        //update values to xively
+        xivelyUpdate();
+        
+        //reset update timer
+        xivelyUpdateTimer = millis();
+    }
+    
+    //check if the spark connection is active
+    if (millis()-sparkConnectionTimer > 1000*60*SPARK_CONNECTIONINTERVALMIN) {
+        if(!Spark.connected()) //reconnect spark
+            Spark.connect();
+        sparkConnectionTimer = millis();
+    }
+/*
+    if (xively_status == 1){
+        RGBcontrol(1, 100, 255, 33);    // verde deschis
+        delay (200);
+        RGBcontrol(1, 60, 217, 255);    // albastru deschis
+        delay (200);
+        RGBcontrol(1, 100, 255, 33);    // verde deschis
+        delay (200);
+        RGBcontrol(1, 60, 217, 255);    // verde deschis
+        delay (200);
+    }
+    else
+        RGBcontrol(0, 0, 0, 0);
+   xively_status == 0;
+   RGBcontrol(0, 0, 0, 0);*/
+}
+
+// Load configuration
+void loadConfig() {
+    if (EEPROM.read(CONFIG_START + 0) == CONFIG_VERSION[0] && EEPROM.read(CONFIG_START + 1) == CONFIG_VERSION[1] && EEPROM.read(CONFIG_START + 2) == CONFIG_VERSION[2]) {
+        for (unsigned int t=0; t<sizeof(config); t++) {
+            *((char*)&config + t) = EEPROM.read(CONFIG_START + t);
+        }
+    }
+}
+
+// Save configuration
+void saveConfig() {
+  for (unsigned int t=0; t<sizeof(config); t++)
+    EEPROM.write(CONFIG_START + t, *((char*)&config + t));
+}
+
+// Update data to xively
+void xivelyUpdate() { 
+    char numtemp[10];
+	double d = 0;
+    char SEN[10];
+    
+    	//set the datapoints array
+	xivelyLib_datapoint datapoints[23];
+	for(int i=0; i<sizeof(datapoints)/sizeof(datapoints[0]); i++) {
+	    datapoints[i].enabled = false;
+	    memset(datapoints[i].id, 0, sizeof(datapoints[i].id));
+	    memset(datapoints[i].value, 0, sizeof(datapoints[i].value));
+	}
+	// DIGITAL DATAPOINTS
+	for(int i=0; i<23; i++) {
+  //      if(xivelydatapoint_sensorcount[i] != 0) {
+        delay(10);
+            d = (double)xivelydatapoint_sensor[i]/(double)xivelydatapoint_sensorcount[i];
+            memset(numtemp, 0, sizeof(numtemp));
+        	sprintf(numtemp, "%3.1f", d);
+        	datapoints[i].enabled = true;
+            sprintf(SEN, "%d",FEED_CHANNEL[i]);  //transforma intregul numeric in char. problema era in tipul de date folosit (char/int/array)
+            strncpy( datapoints[i].id, SEN, strlen(SEN)   ); 
+            strncpy( datapoints[i].value, numtemp, strlen(numtemp));
+            xivelydatapoint_sensor[i] = 0;
+            xivelydatapoint_sensorcount[i] = 0;
+//        }
+	}
+    //update to xively
+    xively.updateDatapoints(datapoints, sizeof(datapoints)/sizeof(datapoints[0]));
+    
+    //update xively status led
+    if(xively.isUpdateSuccessful()) {
+        xively_status = 1;
+    } else {
+        xively_status = 0;
+    }
+}
+
+// Set config xively_feedid
+int call_setFeedId(String feedId) {
+    char feedIdc[XIVELYLIB_FEEDID_SIZE];
+    feedId.toCharArray(feedIdc, sizeof(feedIdc));
+    if(xively.validateFeedId(feedIdc)) {
+        //update new value to eeprom
+        feedId.toCharArray(config.xively_feedid, sizeof(config.xively_feedid));
+        saveConfig();
+        //update the value to xively
+        xively.setFeedId(config.xively_feedid);
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+// Set config xively_apikey
+int call_setApiKey(String apiKey) {
+    char apiKeyc[XIVELYLIB_APIKEY_SIZE];
+    apiKey.toCharArray(apiKeyc, sizeof(apiKeyc));
+    if(xively.validateApiKey(apiKeyc)) {
+        //update new value to eeprom
+        apiKey.toCharArray(config.xively_apikey, sizeof(config.xively_apikey));
+        saveConfig();
+        //update the value to xively
+        xively.setApiKey(config.xively_apikey);
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+// Update sensor values
+void digital_in_Update() { 
+    static unsigned long digital_sensor_updateTimer = millis(); //analog update timer
+
+    //check when to get the sensor readings
+    if (millis()-digital_sensor_updateTimer > DIGITAL_SENSOR_UPDATETIMERINTERVALMS) {
+        digital_sensor_updateTimer = millis();
+        
+//    	for(int i=0; i<=5; i++) {
+//            xivelydatapoint_sensor[i] += digitalRead(DIGITAL_SENSOR_PORT[i]);
+//            xivelydatapoint_sensor[i] += 600+i;     //digitalRead(DIGITAL_SENSOR_PORT[i]);
+//            xivelydatapoint_sensorcount[i]++;
+//    	}
+            xivelydatapoint_sensor[0] += digitalRead(DIGITAL_SENSOR_PORT[2]);
+            xivelydatapoint_sensorcount[0]++;
+            xivelydatapoint_sensor[1] += digitalRead(DIGITAL_SENSOR_PORT[3]);
+            xivelydatapoint_sensorcount[1]++;
+            xivelydatapoint_sensor[2] += digitalRead(DIGITAL_SENSOR_PORT[4]);
+            xivelydatapoint_sensorcount[2]++;
+            xivelydatapoint_sensor[3] += digitalRead(DIGITAL_SENSOR_PORT[5]);
+            xivelydatapoint_sensorcount[3]++;
+            xivelydatapoint_sensor[4] += digitalRead(DIGITAL_SENSOR_PORT[6]);
+            xivelydatapoint_sensorcount[4]++;
+            xivelydatapoint_sensor[5] += digitalRead(DIGITAL_SENSOR_PORT[7]);
+            xivelydatapoint_sensorcount[5]++;
+     }
+}
+
+
+//Update analog sensor values
+void analog_in_Update() {
+    static unsigned long analog_sensor_updateTimer = millis(); //analog update timer
+
+    //check when to get the sensor readings
+    if (millis()-analog_sensor_updateTimer > ANALOG_SENSOR_UPDATETIMERINTERVALMS) {
+        analog_sensor_updateTimer = millis();
+//    	for(int i=6; i<=9; i++) {
+//            xivelydatapoint_sensor[ii] += analogRead(ANALOG_SENSOR_PORT[iii]);
+//            xivelydatapoint_sensor[i] += i+400;     //analogRead(ANALOG_SENSOR_PORT[iii])
+//            xivelydatapoint_sensorcount[i]++;
+//    	}
+        xivelydatapoint_sensor[6] += analogRead(ANALOG_SENSOR_PORT[4]);
+        xivelydatapoint_sensor[7] += analogRead(ANALOG_SENSOR_PORT[5]);
+        xivelydatapoint_sensor[8] += analogRead(ANALOG_SENSOR_PORT[6]);
+        xivelydatapoint_sensor[9] += analogRead(ANALOG_SENSOR_PORT[7]);
+        xivelydatapoint_sensorcount[6]++;
+        xivelydatapoint_sensorcount[7]++;
+        xivelydatapoint_sensorcount[8]++;
+        xivelydatapoint_sensorcount[9]++;
+     }
+    
+}
+
+//Update temperature sensor values
+void temperature_sensor_Update() {
+    static unsigned long temp_sensor_updateTimer = millis(); //analog update timer
+
+    //check when to get the sensor readings
+    if (millis()-temp_sensor_updateTimer > TEMP_SENSOR_UPDATETIMERINTERVALMS) {
+        temp_sensor_updateTimer = millis();
+        sensors.requestTemperatures();
+        
+        TEMPCHANNEL[0] = sensors.getTempC(SENSOR_CHANNEL10);
+        TEMPCHANNEL[1] = sensors.getTempC(SENSOR_CHANNEL1);
+        TEMPCHANNEL[2] = sensors.getTempC(SENSOR_CHANNEL2);
+        TEMPCHANNEL[3] = sensors.getTempC(SENSOR_CHANNEL3);
+        TEMPCHANNEL[4] = sensors.getTempC(SENSOR_CHANNEL4);
+        TEMPCHANNEL[5] = sensors.getTempC(SENSOR_CHANNEL5);
+        TEMPCHANNEL[6] = sensors.getTempC(SENSOR_CHANNEL6);
+        TEMPCHANNEL[7] = sensors.getTempC(SENSOR_CHANNEL7);
+        TEMPCHANNEL[8] = sensors.getTempC(SENSOR_CHANNEL8);
+        TEMPCHANNEL[9] = sensors.getTempC(SENSOR_CHANNEL9);
+
+//    	for(int i=10; i<=19; i++) {
+//            xivelydatapoint_sensor[i] += TEMPCHANNEL[i];
+//            xivelydatapoint_sensorcount[i]++;
+//    	}
+        xivelydatapoint_sensor[10] += TEMPCHANNEL[0];
+        xivelydatapoint_sensorcount[10]++;
+        xivelydatapoint_sensor[11] += TEMPCHANNEL[1];
+        xivelydatapoint_sensorcount[11]++;
+        xivelydatapoint_sensor[12] += TEMPCHANNEL[2];
+        xivelydatapoint_sensorcount[12]++;
+        xivelydatapoint_sensor[13] += TEMPCHANNEL[3];
+        xivelydatapoint_sensorcount[13]++;
+        xivelydatapoint_sensor[14] += TEMPCHANNEL[4];
+        xivelydatapoint_sensorcount[14]++;
+        xivelydatapoint_sensor[15] += TEMPCHANNEL[5];
+        xivelydatapoint_sensorcount[15]++;
+        xivelydatapoint_sensor[16] += TEMPCHANNEL[6];
+        xivelydatapoint_sensorcount[16]++;
+        xivelydatapoint_sensor[17] += TEMPCHANNEL[7];
+        xivelydatapoint_sensorcount[17]++;
+        xivelydatapoint_sensor[18] += TEMPCHANNEL[8];
+        xivelydatapoint_sensorcount[18]++;
+        xivelydatapoint_sensor[19] += TEMPCHANNEL[9];
+        xivelydatapoint_sensorcount[19]++;
+     }
+    
+}
+
+//Update current sensor values
+void current_sensor_Update() {
+    double Irms1 = emon1.calcIrms(1480) * 230 / 10;  // Calculate Irms only
+    double Irms2 = emon2.calcIrms(1480) * 230 / 10;  // Calculate Irms only
+    double Irms3 = emon3.calcIrms(1480) * 230 / 10;  // Calculate Irms only
+    xivelydatapoint_sensor[20] += Irms1;
+    xivelydatapoint_sensorcount[20]++;
+    xivelydatapoint_sensor[21] += Irms2;
+    xivelydatapoint_sensorcount[21]++;
+    xivelydatapoint_sensor[22] += Irms3;
+    xivelydatapoint_sensorcount[22]++;
+}
+
+// encoder button reading // pentru meniul cu setari de parametrii
+//void buttonRead(){
+//    if(buttonreading != previous ){
+//    	if ( buttonreading == LOW )	{
+//   		menu_set = !menu_set;
+//    		if(menu_set == 1) { }
+//    	}
+//}
+//previous = buttonreading;
+//}
+
+//encoder reading
+void encoderRead() {
+moving = true;
+  if(encValue != 0){
+//   readingdelay = millis() + 5000;
+//   lastConnectionTime = millis();
+//   if (menu_set == 0) {
+	page += encValue;
+	encValue = 0;
+    if (page > 11) page = 0;
+    if (page < 0) page = 11;
+//	clearLCD();
+	
+//	}
+  }
+}
+
+// encoder A
+void intrEncChange1(){
+  if(moving)
+    delay(1);
+  if(digitalRead(D0) == enc1)
+    return;
+  enc1 = !enc1;
+  if(enc1 && !enc2)
+    encValue -= 1;
+  moving = false;
+}
+
+// encoder B
+void intrEncChange2(){
+  if(moving)
+    delay(1);
+  if(digitalRead(D1) == enc2)
+    return;
+  enc2 = !enc2;
+  if(enc2 && !enc1)
+    encValue += 1;
+  moving = false;
+}
+
+void RGBcontrol(int c, int R, int G, int B) {
+    if (c == 1) {
+        RGB.control(true);              // Steals control of the Spark Core's RGB LED
+        RGB.color( R, G , B );         // sets the LED on to whaveter value you give it. (R, G, B)
+    }
+    else
+        RGB.control(false);             // Gives control of the RGB LED back to the Spark Core.
+}
+
+
+
